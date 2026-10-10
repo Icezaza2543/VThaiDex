@@ -4,10 +4,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { createRequestLoader } from '../src/lib/useApiData.js';
 import DataError from '../src/components/DataError.js';
-import { fetchOverview, fetchCreatorsPage, fetchSpotlight } from '../src/lib/api.js';
+import { fetchOverview, fetchCreatorsPage, fetchSpotlight, fetchDiscover } from '../src/lib/api.js';
 
 test('failed stats, creators and spotlight show an error then recover through retry',async()=>{
- for(const fetcher of [f=>fetchOverview(f),f=>fetchCreatorsPage({},f),f=>fetchSpotlight({},f)]){
+ for(const fetcher of [f=>fetchOverview(f),f=>fetchCreatorsPage({},f),f=>fetchSpotlight({},f),f=>fetchDiscover({shelf:'debut'},f)]){
   let ready=false,calls=0,state;
   const fetch=async()=>{calls++;return ready?new Response('{"items":[],"total_vtubers":2}'):new Response('{}',{status:503});};
   const load=createRequestLoader(()=>fetcher(fetch),s=>{state=s;});

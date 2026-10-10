@@ -2,6 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://vthaidex.vercel.app/</loc></url>
   <url><loc>https://vthaidex.vercel.app/analytics</loc></url><url><loc>https://vthaidex.vercel.app/directory</loc></url>
+  <url><loc>https://vthaidex.vercel.app/discover</loc></url>
   <url><loc>https://vthaidex.vercel.app/about</loc></url>
   <url><loc>https://vthaidex.vercel.app/terms</loc></url>
   <url><loc>https://vthaidex.vercel.app/terms-of-use</loc></url>

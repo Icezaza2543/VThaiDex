@@ -4,6 +4,7 @@ import * as defaultStorage from '../lib/storage.js';
 import { decodeCursor, encodeCursor } from '../lib/cursor.js';
 import { jsonResponse, noIndexHeaders } from '../lib/http.js';
 import { parseCreatorQuery } from '../lib/public-schema.js';
+import { toPublicCreator } from '../lib/discover.js';
 
 function sortKey(value){return String(value??'').normalize('NFKC').toLocaleLowerCase('th');}
 export async function handleCreators(request,{storage=defaultStorage,cursorSecret=process.env.VTHAIDEX_CURSOR_SECRET,now=Date.now()}={}){
@@ -27,7 +28,7 @@ export async function handleCreators(request,{storage=defaultStorage,cursorSecre
     .filter(c=>!query.scope||(query.scope==='independent'?!c.agency:Boolean(c.agency)))
     .sort((a,b)=>sortKey(a.name).localeCompare(sortKey(b.name),'th'));
   if(!Number.isInteger(pos)||pos<0||pos>filtered.length) return jsonResponse(400,{error:'invalid_cursor'},noIndexHeaders());
-  const items=filtered.slice(pos,pos+query.limit);
+  const items=filtered.slice(pos,pos+query.limit).map(toPublicCreator);
   const nextPos=pos+items.length;
   const next_cursor=nextPos<filtered.length?encodeCursor({...expected,v:1,pos:nextPos,exp:Math.floor(now/1000)+900},{secret:cursorSecret,now}):null;
   return jsonResponse(200,{items,next_cursor},noIndexHeaders());

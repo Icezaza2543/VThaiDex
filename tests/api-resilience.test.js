@@ -6,6 +6,7 @@ import { requireBlobConfig, requireCounterConfig } from '../lib/config.js';
 import { handleStats } from '../api/stats.js';
 import { handleCreators } from '../api/creators.js';
 import { handleSpotlight } from '../api/spotlight.js';
+import { handleDiscover } from '../api/discover.js';
 import { handleVisits, upstashFromEnv } from '../api/visits.js';
 
 const cursorSecret = Buffer.alloc(32, 7).toString('base64url');
@@ -55,14 +56,18 @@ test('all data/counter 503 paths log the endpoint and safe actual message',async
   const broken={readCurrentSnapshot:async()=>{throw Error('private storage unavailable');}};
   for(const [endpoint,handler,options] of [
     ['stats',handleStats,{storage:broken}],['creators',handleCreators,{storage:broken,cursorSecret}],
-    ['spotlight',handleSpotlight,{storage:broken}],['visits',handleVisits,{redis:async()=>{throw Error('counter connection failed');}}]
+    ['spotlight',handleSpotlight,{storage:broken}],
+    ['discover',handleDiscover,{storage:broken,cursorSecret}],
+    ['visits',handleVisits,{redis:async()=>{throw Error('counter connection failed');}}]
   ]){
-    const res=await handler(request(endpoint),options);
+    const url=endpoint==='discover'?'https://test/api/discover?shelf=debut':undefined;
+    const res=await handler(url?new Request(url):request(endpoint),options);
     assert.equal(res.status,503);assert.ok(logs.some(s=>s.includes(`/api/${endpoint}`)&&s.includes(endpoint==='visits'?'counter connection failed':'private storage unavailable')));
   }
-  for(const handler of [handleStats,handleSpotlight,handleCreators]){
+  for(const handler of [handleStats,handleSpotlight,handleCreators,handleDiscover]){
     const before=logs.length;
-    assert.equal((await handler(request('test'),{storage:{readCurrentSnapshot:async()=>null},cursorSecret})).status,503);
+    const req=handler===handleDiscover?new Request('https://test/api/discover?shelf=debut'):request('test');
+    assert.equal((await handler(req,{storage:{readCurrentSnapshot:async()=>null},cursorSecret})).status,503);
     assert.ok(logs.length>before);assert.match(logs.at(-1),/snapshot/);
   }
   assert.equal((await handleCreators(request('creators'),{cursorSecret:''})).status,503);
@@ -89,8 +94,9 @@ test('real storage missing config is logged before public APIs return 503, witho
   t.after(()=>{for(const k of keys){if(old[k]===undefined)delete process.env[k];else process.env[k]=old[k];}});
   for(const k of keys)delete process.env[k];
   const logs=[];t.mock.method(console,'error',s=>logs.push(s));
-  for(const [endpoint,handler] of [['stats',handleStats],['creators',handleCreators],['spotlight',handleSpotlight]]){
-    assert.equal((await handler(request(endpoint),{cursorSecret})).status,503);
+  for(const [endpoint,handler] of [['stats',handleStats],['creators',handleCreators],['spotlight',handleSpotlight],['discover',handleDiscover]]){
+    const req=endpoint==='discover'?new Request('https://test/api/discover?shelf=debut'):request(endpoint);
+    assert.equal((await handler(req,{cursorSecret})).status,503);
     assert.match(logs.at(-1),new RegExp(`/api/${endpoint}: missing BLOB_STORE_ID`));
   }
 });

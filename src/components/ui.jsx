@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { CircleHelp, ExternalLink } from 'lucide-react';
-import { creatorSummary, fmt } from '../lib/api.js';
+import { creatorSummary, fmt, primaryChannel } from '../lib/api.js';
+import PlatformIcon from './PlatformIcon.jsx';
 
 // Colour discipline: BRAND marks what matters (independent creators, the main series), NEUTRAL (lilac) is agency
 // creators and everything else, RAMP runs pink → lilac → sky for ordered categories, and platforms use their own
@@ -78,9 +79,38 @@ const CARD_ACCENTS = [
   'from-brand via-peach to-brand',
 ];
 
-/** One creator as a stage "sticker" card: tag + debut, the name (wraps, never cut) and real channel buttons. */
-export function CreatorCard({ creator, variant = 0 }) {
+/** One creator as a stage "sticker" card: tag + debut, the name (wraps, never cut) and real channel buttons.
+ * `discover` keeps the same card and shows a name monogram (no portrait is published; CSP blocks remote images),
+ * platform marks, and a single channel link. */
+export function CreatorCard({ creator, variant = 0, discover = false }) {
   const c = creatorSummary(creator);
+  if (discover) {
+    const primary = primaryChannel(c.links);
+    const mark = Array.from(c.name)[0] || '•';
+    return (
+      <article className="card card-well card-hover tilt relative flex h-full flex-col overflow-hidden p-6">
+        <span className={`accent-flow absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${CARD_ACCENTS[variant % CARD_ACCENTS.length]}`} aria-hidden="true" />
+        <div className="flex items-center gap-3 pt-2">
+          <span aria-hidden="true" className="grid size-12 shrink-0 place-items-center rounded-full border border-line bg-raised font-display text-xl text-brand">{mark}</span>
+          <div className="min-w-0">
+            <h3 className="break-words text-lg [overflow-wrap:anywhere]">{c.name}</h3>
+            {c.links.length > 0 && (
+              <ul className="mt-1.5 flex flex-wrap items-center gap-2" aria-label={`ช่องทางของ ${c.name}`}>
+                {c.links.map((link) => <li key={`${link.name}-${link.url}`}><PlatformIcon name={link.name} size={16} /></li>)}
+              </ul>
+            )}
+          </div>
+        </div>
+        {primary && (
+          <div className="mt-auto pt-6">
+            <a href={primary.url} target="_blank" rel="noopener noreferrer" className="link-chip" aria-label={`ไปที่ช่องของ ${c.name} (เปิดในแท็บใหม่)`}>
+              ไปที่ช่อง <ExternalLink size={13} aria-hidden="true" />
+            </a>
+          </div>
+        )}
+      </article>
+    );
+  }
   return (
     <article className="card card-well card-hover tilt relative flex h-full flex-col overflow-hidden p-6">
       <span className={`accent-flow absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${CARD_ACCENTS[variant % CARD_ACCENTS.length]}`} aria-hidden="true" />

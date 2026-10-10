@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Menu, X, PenLine, Orbit, BarChart3, ListFilter, Info, Sun, Moon, Coffee, Shield, Gavel, Code, FileText, Database, Eye } from 'lucide-react';
+import { Menu, X, PenLine, Orbit, BarChart3, ListFilter, Compass, Info, Sun, Moon, Coffee, Shield, Gavel, Code, FileText, Database, Eye } from 'lucide-react';
 import { DONATE_URL, SOURCE_URL, fetchVisits, fmt } from '../lib/api.js';
 import Backdrop, { StageBeams } from './Backdrop.jsx';
 import StageMotion from './Motion.jsx';
@@ -8,6 +8,7 @@ const NAV = [
   { href: '/', label: 'หน้าแรก', icon: Orbit },
   { href: '/analytics', label: 'ข้อมูลวงการ', icon: BarChart3 },
   { href: '/directory', label: 'รายชื่อ', icon: ListFilter },
+  { href: '/discover', label: 'ค้นพบ', icon: Compass },
   { href: '/about', label: 'เกี่ยวกับ', icon: Info },
 ];
 

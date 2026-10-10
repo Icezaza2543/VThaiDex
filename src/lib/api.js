@@ -66,6 +66,32 @@ export function creatorSummary(c) {
   };
 }
 
+const MAIN_PLATFORMS = ['youtube', 'twitch', 'tiktok'];
+
+/** The one channel a discover card links to: YouTube, then Twitch, then TikTok, then any other public URL. */
+export function primaryChannel(links) {
+  for (const name of MAIN_PLATFORMS) {
+    const hit = (links || []).find((link) => link.name === name && link.url);
+    if (hit) return hit;
+  }
+  return (links || []).find((link) => link.url) || null;
+}
+
+export function buildDiscoverUrl({ shelf, platform = '', seed = '', cursor = '', limit = PAGE_SIZE } = {}) {
+  if (!Number.isInteger(limit) || limit < 1 || limit > PAGE_SIZE) throw new TypeError(`limit must be between 1 and ${PAGE_SIZE}`);
+  const params = new URLSearchParams({ shelf, limit: String(limit) });
+  if (platform) params.set('platform', platform);
+  if (seed) params.set('seed', seed);
+  if (cursor) params.set('cursor', cursor);
+  return `/api/discover?${params.toString()}`;
+}
+
+export async function fetchDiscover(query = {}, fetchImpl = fetch) {
+  const payload = await json(await fetchImpl(buildDiscoverUrl(query), { headers: { Accept: 'application/json' } }));
+  if (!Array.isArray(payload.items)) throw new Error('invalid discover response');
+  return { items: payload.items, next_cursor: payload.next_cursor || null, available: payload.available !== false, shelf: payload.shelf };
+}
+
 /** A few random independent creators (max 6). */
 export async function fetchSpotlight({ n = 3, platform = '' } = {}, fetchImpl = fetch) {
   const p = new URLSearchParams({ n: String(n) });

@@ -138,13 +138,14 @@ const PATHS = [
   { icon: Dices, tone: 'text-brand', hover: 'hover:!border-brand', title: 'สุ่มเจอวีอิสระ', body: 'ไม่ต้องรู้ชื่อก่อน กดสุ่มแล้วไปเจอวีที่ยังไม่มีค่ายคอยดัน', cta: 'ลองสุ่มด้านล่าง', href: '#spotlight' },
   { icon: ListFilter, tone: 'text-sky', hover: 'hover:!border-sky', title: 'ค้นหาตามแพลตฟอร์ม', body: 'อยากดูวีบน Twitch หรือ TikTok เลือกแพลตฟอร์มแล้วกรองเฉพาะวีอิสระได้', cta: 'เปิดรายชื่อ', href: '/directory?scope=independent' },
   { icon: BarChart3, tone: 'text-lemon', hover: 'hover:!border-lemon', title: 'ดูภาพรวมทั้งวงการ', body: 'วงการโตแค่ไหน วีอยู่แพลตฟอร์มไหน ค่ายใหญ่แค่ไหน ดูเป็นกราฟได้ในหน้าเดียว', cta: 'ดูข้อมูลวงการ', href: '/analytics' },
+  { icon: Sparkles, tone: 'text-mint', hover: 'hover:!border-mint', title: 'ค้นพบ VTuber อิสระ', body: 'การสุ่มเลือกเฉพาะวีอิสระ และทุกคนมีโอกาสถูกสุ่มเท่ากัน', cta: 'ค้นพบ', href: '/discover' },
 ];
 
 function Explore() {
   return (
     <section id="explore" className="mx-auto max-w-[1920px] scroll-mt-20 px-4 sm:px-6 lg:px-8">
       <div data-reveal><SectionHeading>ทำอะไรได้ที่นี่</SectionHeading></div>
-      <ul className="mt-8 grid gap-6 md:grid-cols-3">
+      <ul className="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
         {PATHS.map(({ icon: Icon, tone, hover, title, body, cta, href }) => (
           <li key={title} className={`card card-well card-hover tilt group flex flex-col p-6 transition hover:bg-card ${hover}`}>
             <span className={`icon-tile size-14 transition group-hover:scale-105 ${tone}`}><Icon size={28} aria-hidden="true" /></span>

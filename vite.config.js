@@ -19,6 +19,7 @@ const localApi = {
         '/api/stats': async (r) => (await import('./api/stats.js')).handleStats(r, { storage }),
         '/api/creators': async (r) => (await import('./api/creators.js')).handleCreators(r, { storage, cursorSecret }),
         '/api/spotlight': async (r) => (await import('./api/spotlight.js')).handleSpotlight(r, { storage }),
+        '/api/discover': async (r) => (await import('./api/discover.js')).handleDiscover(r, { storage, cursorSecret }),
       };
       if (!handlers[route]) return next();
       const response = await handlers[route](new Request(`http://localhost${req.url}`));
@@ -29,7 +30,7 @@ const localApi = {
   },
 };
 
-const pages = ['index', 'analytics', 'directory', 'about', 'contribute', 'terms', 'terms-of-use', 'privacy', 'data-license'];
+const pages = ['index', 'analytics', 'directory', 'discover', 'about', 'contribute', 'terms', 'terms-of-use', 'privacy', 'data-license'];
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), localApi],

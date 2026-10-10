@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const publicPages=['index.html','analytics.html','directory.html','about.html','terms.html','terms-of-use.html','privacy.html','data-license.html'];
+const publicPages=['index.html','analytics.html','directory.html','discover.html','about.html','terms.html','terms-of-use.html','privacy.html','data-license.html'];
 const legalLinks=['/terms','/terms-of-use','/privacy','/data-license'];
 const text=file=>readFileSync(new URL(`../${file}`,import.meta.url),'utf8');
 
@@ -23,6 +23,14 @@ test('contribution page is noindex and makes no analytics or third-party font re
   assert.equal(/gtag|googletagmanager|plausible|posthog/i.test(html),false);
   assert.equal(/fonts\.googleapis\.com|fonts\.gstatic\.com/i.test(html),false);
 });
+test('discover is in the main nav and on the home page',()=>{
+  assert.match(text('src/components/Layout.jsx'), /href: '\/discover', label: 'ค้นพบ'/);
+  assert.match(text('src/pages/Home.jsx'), /href: '\/discover'/);
+  assert.match(text('src/pages/Discover.jsx'), /สุ่มใหม่/);
+  assert.match(text('src/pages/Discover.jsx'), /เพิ่งเดบิวต์/);
+  assert.match(text('src/components/ui.jsx'), /ไปที่ช่อง/);
+  assert.equal(text('src/pages/Discover.jsx').includes('sort'), false);
+});
 test('shared layout links every legal page from the footer',()=>{
   const layout=text('src/components/Layout.jsx');
   for(const href of legalLinks) assert.ok(layout.includes(`href: '${href}'`),`Layout missing ${href}`);
@@ -32,7 +40,7 @@ test('navigation uses real routes instead of hash routes',()=>{
 });
 test('robots and sitemap expose only intended public surfaces',()=>{
   const robots=text('public/robots.txt');assert.match(robots,/Disallow: \/api\//);assert.match(robots,/Disallow: \/contribute/);assert.match(robots,/Disallow: \/internal\//);
-  const sitemap=text('public/sitemap.xml');for(const path of ['/','/directory','/about','/terms','/terms-of-use','/privacy','/data-license']) assert.ok(sitemap.includes(`https://vthaidex.vercel.app${path}`));
+  const sitemap=text('public/sitemap.xml');for(const path of ['/','/directory','/discover','/about','/terms','/terms-of-use','/privacy','/data-license']) assert.ok(sitemap.includes(`https://vthaidex.vercel.app${path}`));
   assert.equal(sitemap.includes('https://vthaidex.vercel.app/contribute'),false);
 });
 test('repository license separates CC BY-NC-ND site content, source code, public facts and compiled data rights',()=>{
