@@ -4,12 +4,13 @@ import { ArrowRight } from 'lucide-react';
 import { BRAND, NEUTRAL, RAMP } from '../components/ui.jsx';
 import PlatformIcon from '../components/PlatformIcon.jsx';
 import { Donut, Waffle } from '../components/charts.jsx';
-import { fmt, pct } from '../lib/api.js';
+import { fmt, pct, STATUS_LABELS } from '../lib/api.js';
+import { INCOMPLETE_YEAR_NOTE, YOUTUBE_MEASURE_NOTE, isIncompleteYear, knownPercent, subsetNote } from '../lib/coverage.js';
 
 const TIERS = ['independent', 'small', 'mid', 'big'];
 const TIER_LABEL = { independent: 'วีอิสระ', small: 'ค่ายเล็ก', mid: 'ค่ายกลาง', big: 'ค่ายใหญ่' };
 const TIER_COLOR = { independent: BRAND, small: 'var(--color-lilac)', mid: 'var(--color-lemon)', big: 'var(--color-sky)' };
-const TIER_NOTE = 'ระดับค่ายดูจากยอดผู้ติดตาม YouTube รวมของสมาชิก: ใหญ่ 1M ขึ้นไป · กลาง 100K–1M · เล็กต่ำกว่า 100K';
+const TIER_NOTE = `ระดับค่ายดูจากยอดผู้ติดตาม YouTube รวมของสมาชิก: ใหญ่ 1M ขึ้นไป · กลาง 100K–1M · เล็กต่ำกว่า 100K ${YOUTUBE_MEASURE_NOTE}`;
 const BAND_LABEL = { '<1K': 'ต่ำกว่า 1K', '1K-10K': '1K–10K', '10K-100K': '10K–100K', '100K+': '100K ขึ้นไป' };
 const sumTiers = (r) => TIERS.reduce((a, t) => a + (r[t] || 0), 0);
 const Hi = ({ children }) => <span className="text-brand">{children}</span>;
@@ -24,12 +25,13 @@ function TierLegend({ tiers = TIERS }) {
   );
 }
 
-function InsightCard({ title, children, note, className = '' }) {
+function InsightCard({ title, children, note, coverage, className = '' }) {
+  const foot = [coverage, note].filter(Boolean).join(' ');
   return (
     <article className={`card card-hover flex flex-col p-6 ${className}`}>
       <h3 className="font-display text-[1.375rem] font-normal leading-snug sm:text-2xl">{title}</h3>
       <div className="mt-5 flex-1">{children}</div>
-      {note && <p className="mt-5 border-t border-line pt-3 text-xs text-faint">{note}</p>}
+      {foot && <p className="mt-5 border-t border-line pt-3 text-xs text-faint">{foot}</p>}
     </article>
   );
 }
@@ -61,24 +63,24 @@ function StackRows({ rows, keys, colors, labelWidth = '6.5rem' }) {
   );
 }
 
-function TierShare({ ins }) {
+function TierShare({ ins, total }) {
   const c = Object.fromEntries(ins.tiers.map((t) => [t.tier, t.count]));
-  const total = sumTiers(c);
-  const notBig = 100 - (pct(c.big, total) ?? 0);
+  const tierTotal = sumTiers(c);
+  const notBig = 100 - (pct(c.big, tierTotal) ?? 0);
   return (
-    <InsightCard title={<><Hi>{notBig}%</Hi> ของวีไทย<br />ไม่ได้อยู่ค่ายใหญ่</>} note={`${TIER_NOTE} (ตอนนี้มีค่ายใหญ่ ${ins.big_agency_count} ค่าย) · 1 ช่อง = 1%`}>
+    <InsightCard title={<><Hi>{notBig}%</Hi> ของวีไทย<br />ไม่ได้อยู่ค่ายใหญ่</>} coverage={subsetNote(tierTotal, total)} note={`${TIER_NOTE} (ตอนนี้มีค่ายใหญ่ ${ins.big_agency_count} ค่าย) · 1 ช่อง = 1%`}>
       <Waffle label="สัดส่วนวีตามประเภทสังกัด" parts={TIERS.map((t) => ({ label: TIER_LABEL[t], value: c[t], color: TIER_COLOR[t] }))} />
     </InsightCard>
   );
 }
 
-function StillActive({ ins }) {
+function StillActive({ ins, total }) {
   const rows = ins.activity;
   const active = rows.reduce((a, r) => a + r.active, 0);
   const indie = rows.find((r) => r.tier === 'independent');
   const max = Math.max(...rows.map((r) => r.scanned), 1);
   return (
-    <InsightCard title={<>วีที่ยังทำอยู่ <Hi>{pct(indie.active, active)}%</Hi><br />เป็นวีอิสระ</>} note={`ยังทำอยู่ = มีคลิปใหม่ใน 90 วัน · นับเฉพาะ ${fmt(ins.basis.activity_scanned)} ช่องที่ระบบตรวจการลงคลิปได้`}>
+    <InsightCard title={<>วีที่ยังทำอยู่ <Hi>{pct(indie.active, active)}%</Hi><br />เป็นวีอิสระ</>} coverage={subsetNote(ins.basis.activity_scanned, total)} note={`ยังทำอยู่ = มีคลิปใหม่ใน 90 วัน · นับเฉพาะ ${fmt(ins.basis.activity_scanned)} ช่องที่ระบบตรวจการลงคลิปได้ ${YOUTUBE_MEASURE_NOTE}`}>
       <div className="flex h-56 items-end justify-around gap-4">
         {rows.map((r) => (
           <div key={r.tier} className="flex h-full w-full max-w-28 flex-col items-center justify-end">
@@ -95,12 +97,12 @@ function StillActive({ ins }) {
   );
 }
 
-function ActiveDots({ ins }) {
+function ActiveDots({ ins, total }) {
   const a = Object.fromEntries(ins.activity.map((r) => [r.tier, r.active]));
   const times = a.big ? Math.round(a.independent / a.big) : null;
   const dots = (n) => Math.round(n / 10);
   return (
-    <InsightCard title={<>วีอิสระที่ยังทำอยู่<br />มากกว่าค่ายใหญ่ <Hi>{times ?? '—'} เท่า</Hi></>} note="1 จุด = 10 คน · นับคนที่มีคลิปใหม่ใน 90 วัน">
+    <InsightCard title={<>วีอิสระที่ยังทำอยู่<br />มากกว่าค่ายใหญ่ <Hi>{times ?? '—'} เท่า</Hi></>} coverage={subsetNote(ins.basis.activity_scanned, total)} note={`1 จุด = 10 คน · นับคนที่มีคลิปใหม่ใน 90 วัน ${YOUTUBE_MEASURE_NOTE}`}>
       {['independent', 'big'].map((t) => (
         <div key={t} className="mb-5">
           <p className="flex justify-between text-sm"><span className="font-medium">{TIER_LABEL[t]}ที่ยังทำอยู่</span><span className="font-display text-lg tabular-nums">{fmt(a[t])}</span></p>
@@ -113,20 +115,20 @@ function ActiveDots({ ins }) {
   );
 }
 
-function BandsByTier({ ins }) {
+function BandsByTier({ ins, total }) {
   const rows = ins.size_bands.map((b) => ({ label: BAND_LABEL[b.band] || b.band, values: b }));
   const small = ins.size_bands.filter((b) => b.band === '<1K' || b.band === '1K-10K');
   const smallTotal = small.reduce((a, b) => a + sumTiers(b), 0);
   const smallNotBig = small.reduce((a, b) => a + b.independent + b.small + b.mid, 0);
   return (
-    <InsightCard title={<>ช่องเล็ก <Hi>{pct(smallNotBig, smallTotal)}%</Hi><br />ไม่ใช่ค่ายใหญ่</>} note={`ใช้ช่อง YouTube ที่มีผู้ติดตามมากที่สุดของแต่ละคน · ${fmt(ins.basis.with_youtube_followers)} ช่องที่มียอดผู้ติดตาม`}>
+    <InsightCard title={<>ช่องเล็ก <Hi>{pct(smallNotBig, smallTotal)}%</Hi><br />ไม่ใช่ค่ายใหญ่</>} coverage={subsetNote(ins.basis.with_youtube_followers, total)} note={`ใช้ช่อง YouTube ที่มีผู้ติดตามมากที่สุดของแต่ละคน · ${fmt(ins.basis.with_youtube_followers)} ช่องที่มียอดผู้ติดตาม ${YOUTUBE_MEASURE_NOTE}`}>
       <TierLegend />
       <div className="mt-4"><StackRows rows={rows} keys={TIERS} colors={TIER_COLOR} /></div>
     </InsightCard>
   );
 }
 
-function BandLines({ ins }) {
+function BandLines({ ins, total }) {
   const bands = ins.size_bands;
   const share = (b, t) => (sumTiers(b) ? (b[t] / sumTiers(b)) * 100 : 0);
   const last = bands.at(-1);
@@ -135,7 +137,7 @@ function BandLines({ ins }) {
   const X = (i) => padL + (i * (W - padL - padR)) / (bands.length - 1);
   const Y = (v) => H - padY - (v / 100) * (H - 2 * padY);
   return (
-    <InsightCard title={<>ยิ่งช่องใหญ่ ค่ายใหญ่ยิ่งเยอะ<br />{indieLeads ? <>แต่<Hi>วีอิสระยังนำ</Hi></> : <>และ<Hi>ค่ายใหญ่นำ</Hi></>}</>} note="สัดส่วนของช่องในแต่ละช่วงยอดผู้ติดตาม YouTube">
+    <InsightCard title={<>ช่องที่ใหญ่มักอยู่ในค่ายใหญ่<br />{indieLeads ? <>แต่<Hi>วีอิสระยังนำ</Hi></> : <>และ<Hi>ค่ายใหญ่นำ</Hi></>}</>} coverage={subsetNote(ins.basis.with_youtube_followers, total)} note={`สัดส่วนของช่องในแต่ละช่วงยอดผู้ติดตาม YouTube ${YOUTUBE_MEASURE_NOTE}`}>
       <svg viewBox={`0 0 ${W} ${H + 24}`} className="w-full" role="img" aria-label="สัดส่วนประเภทสังกัดในแต่ละช่วงยอดผู้ติดตาม">
         {[0, 25, 50, 75, 100].map((v) => (
           <g key={v}><line x1={padL} x2={W - padR} y1={Y(v)} y2={Y(v)} stroke="var(--color-line)" /><text x={padL - 6} y={Y(v) + 4} textAnchor="end" fontSize="11" fill="var(--color-faint)">{v}%</text></g>
@@ -153,7 +155,7 @@ function BandLines({ ins }) {
   );
 }
 
-function TierBands({ ins }) {
+function TierBands({ ins, total }) {
   const order = ['<1K', '1K-10K', '10K-100K', '100K+'];
   const colors = Object.fromEntries(order.map((b, i) => [b, RAMP[RAMP.length - 1 - i] ?? RAMP[0]]));
   colors['100K+'] = RAMP[0];
@@ -161,7 +163,7 @@ function TierBands({ ins }) {
   const big = rows[2].values;
   const bigTotal = order.reduce((a, b) => a + (big[b] || 0), 0);
   return (
-    <InsightCard title={<>ช่องค่ายใหญ่ <Hi>{pct((big['10K-100K'] || 0) + (big['100K+'] || 0), bigTotal)}%</Hi><br />อยู่ระดับ 10K ขึ้นไป</>} note="ช่วงยอดผู้ติดตามของช่อง YouTube หลัก แยกตามประเภทสังกัด">
+    <InsightCard title={<>ช่องค่ายใหญ่ <Hi>{pct((big['10K-100K'] || 0) + (big['100K+'] || 0), bigTotal)}%</Hi><br />อยู่ระดับ 10K ขึ้นไป</>} coverage={subsetNote(ins.basis.with_youtube_followers, total)} note={`ช่วงยอดผู้ติดตามของช่อง YouTube หลัก แยกตามประเภทสังกัด ${YOUTUBE_MEASURE_NOTE}`}>
       <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
         {order.map((b) => <li key={b} className="flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ background: colors[b] }} aria-hidden="true" />{BAND_LABEL[b]}</li>)}
       </ul>
@@ -170,14 +172,14 @@ function TierBands({ ins }) {
   );
 }
 
-function SmallChoices({ ins }) {
+function SmallChoices({ ins, total }) {
   const small = ins.size_bands.filter((b) => b.band === '<1K' || b.band === '1K-10K');
   const notBig = small.reduce((a, b) => a + b.independent + b.small + b.mid, 0);
   const indie = small.reduce((a, b) => a + b.independent, 0);
   const big = small.reduce((a, b) => a + b.big, 0);
   const rounded = Math.floor(notBig / 100) * 100;
   return (
-    <InsightCard title={<>อยากจุ่มวีตัวเล็ก<br />มีให้เลือก<Hi>เกือบ {fmt(rounded + 100)} ช่อง</Hi></>} note="ช่องที่มีผู้ติดตาม YouTube ต่ำกว่า 10K">
+    <InsightCard title={<>อยากจุ่มวีตัวเล็ก<br />มีให้เลือก<Hi>เกือบ {fmt(rounded + 100)} ช่อง</Hi></>} coverage={subsetNote(ins.basis.with_youtube_followers, total)} note={`ช่องที่มีผู้ติดตาม YouTube ต่ำกว่า 10K ${YOUTUBE_MEASURE_NOTE}`}>
       <p className="text-sm font-medium">ช่องต่ำกว่า 10K ที่ไม่ใช่ค่ายใหญ่</p>
       <div className="mt-2 flex items-center gap-3">
         <div className="flex h-12 flex-1 overflow-hidden rounded-md">
@@ -196,23 +198,25 @@ function SmallChoices({ ins }) {
   );
 }
 
-function NewDebuts({ ins }) {
+function NewDebuts({ ins, total, knownDebut }) {
   const thisYear = new Date().getFullYear();
-  const full = ins.debuts_by_tier.filter((r) => r.year < thisYear && sumTiers(r) > 0);
-  const show = full.slice(-4);
-  const last = full.at(-1);
+  const rows = ins.debuts_by_tier.filter((r) => r.year <= thisYear && sumTiers(r) > 0);
+  const complete = rows.filter((r) => r.year < thisYear);
+  const show = rows.slice(-4);
+  const last = complete.at(-1) || rows.at(-1);
   if (!last) return null;
   const max = Math.max(...show.map(sumTiers), 1);
+  const unknownDebut = Number.isFinite(knownDebut) && Number.isFinite(total) ? Math.max(total - knownDebut, 0) : 0;
   return (
-    <InsightCard title={<>วีหน้าใหม่ปี {last.year}<br /><Hi>{pct(last.independent, sumTiers(last))}%</Hi> เป็นวีอิสระ</>} note="ปีเดบิวต์จากเหตุการณ์เดบิวต์ที่มีหลักฐาน · ใช้สังกัดปัจจุบัน สมาชิกใหม่ของค่ายอาจยังไม่ถูกบันทึก">
+    <InsightCard title={<>วีหน้าใหม่ปี {last.year}<br /><Hi>{pct(last.independent, sumTiers(last))}%</Hi> เป็นวีอิสระ</>} coverage={subsetNote(Number.isFinite(knownDebut) ? knownDebut : rows.reduce((a, r) => a + sumTiers(r), 0), total, unknownDebut)} note={`ปีเดบิวต์จากเหตุการณ์เดบิวต์ที่มีหลักฐาน · ใช้สังกัดปัจจุบัน สมาชิกใหม่ของค่ายอาจยังไม่ถูกบันทึก ${INCOMPLETE_YEAR_NOTE}`}>
       <TierLegend />
       <div className="mt-4 flex h-56 items-end justify-around gap-4">
         {show.map((r) => {
           const total = sumTiers(r);
           return (
-            <div key={r.year} className="flex h-full w-full max-w-24 flex-col items-center justify-end">
-              <span className="mb-1 text-sm tabular-nums text-muted">{fmt(total)}</span>
-              <div className="flex w-full flex-col-reverse overflow-hidden rounded-t-md" style={{ height: `${(total / max) * 85}%` }}>
+            <div key={r.year} className="flex h-full w-full max-w-24 flex-col items-center justify-end" data-incomplete-year={r.year === thisYear ? 'true' : undefined}>
+              <span className="mb-1 text-sm tabular-nums text-muted" style={{ opacity: r.year === thisYear ? 0.55 : 1 }}>{fmt(total)}</span>
+              <div className="flex w-full flex-col-reverse overflow-hidden rounded-t-md" style={{ height: `${(total / max) * 85}%`, opacity: r.year === thisYear ? 0.4 : 1, outline: r.year === thisYear ? '1px dashed var(--color-faint)' : undefined }}>
                 {TIERS.map((t) => <span key={t} className="block w-full shrink-0" style={{ height: `${(r[t] / total) * 100}%`, background: TIER_COLOR[t] }} title={`${TIER_LABEL[t]}: ${fmt(r[t])}`} />)}
               </div>
               <span className="mt-2 text-sm font-medium">ปี {r.year}</span>
@@ -224,14 +228,14 @@ function NewDebuts({ ins }) {
   );
 }
 
-function LiveWhere({ ins }) {
+function LiveWhere({ ins, total }) {
   const combos = [...ins.live_combos].sort((a, b) => b.count - a.count);
-  const total = combos.reduce((a, c) => a + c.count, 0);
+  const comboTotal = combos.reduce((a, c) => a + c.count, 0);
   const ytOnly = combos.find((c) => c.platforms.length === 1 && c.platforms[0] === 'youtube');
   const multi = combos.filter((c) => c.platforms.length > 1).reduce((a, c) => a + c.count, 0);
   const max = Math.max(...combos.map((c) => c.count), 1);
   return (
-    <InsightCard className="md:col-span-2" title={<>วีไทย <Hi>{pct(ytOnly?.count, total)}%</Hi> อยู่บน YouTube อย่างเดียว<br />อีก <Hi>{pct(multi, total)}%</Hi> อยู่หลายแพลตฟอร์มพร้อมกัน</>} note={`นับจากบัญชี YouTube / Twitch / TikTok ที่ยืนยันแล้ว ไม่ได้ดูว่าไลฟ์พร้อมกันจริงไหม · อีก ${fmt(ins.no_live_platform)} คนไม่มีบัญชีบนสามแพลตฟอร์มนี้`}>
+    <InsightCard className="md:col-span-2" title={<>วีไทย <Hi>{pct(ytOnly?.count, comboTotal)}%</Hi> อยู่บน YouTube อย่างเดียว<br />อีก <Hi>{pct(multi, comboTotal)}%</Hi> อยู่หลายแพลตฟอร์มพร้อมกัน</>} coverage={subsetNote(comboTotal, total)} note={`นับจากบัญชี YouTube / Twitch / TikTok ที่ยืนยันแล้ว ไม่ได้ดูว่าไลฟ์พร้อมกันจริงไหม · อีก ${fmt(ins.no_live_platform)} คนไม่มีบัญชีบนสามแพลตฟอร์มนี้`}>
       <ul className="grid gap-x-10 gap-y-3 md:grid-cols-2">
         {combos.filter((c) => c.count > 0).map((c) => (
           <li key={c.platforms.join('+')} className="grid grid-cols-[5.5rem_1fr_3.5rem] items-center gap-3 text-sm" title={`${fmt(c.count)} คน · วีอิสระ ${fmt(c.independent)}`}>
@@ -276,26 +280,30 @@ function Bars({ rows, color = BRAND, unit = '' }) {
 }
 
 /** Vertical bars with value labels; the highlighted bar is brand pink, the rest lilac. */
-function VBars({ rows, highlight, label }) {
+function VBars({ rows, highlight, label, openYear }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <div className="flex h-44 items-end gap-1.5" role="img" aria-label={label}>
-      {rows.map((r) => (
-        <div key={r.label} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-          <span className="text-[11px] tabular-nums text-muted">{fmt(r.value)}</span>
-          <span className="w-full rounded-t-md" style={{ height: `${Math.max(2, (r.value / max) * 120)}px`, background: r.label === highlight ? BRAND : 'var(--color-lilac)', opacity: r.label === highlight ? 1 : 0.7 }} />
-          <span className="truncate text-[11px] text-faint">{r.label}</span>
-        </div>
-      ))}
+      {rows.map((r) => {
+        const open = openYear != null && String(r.label) === String(openYear);
+        return (
+          <div key={r.label} className="flex min-w-0 flex-1 flex-col items-center gap-1" data-incomplete-year={open ? 'true' : undefined}>
+            <span className="text-[11px] tabular-nums text-muted">{fmt(r.value)}</span>
+            <span className="w-full rounded-t-md" style={{ height: `${Math.max(2, (r.value / max) * 120)}px`, background: r.label === highlight ? BRAND : 'var(--color-lilac)', opacity: open ? 0.4 : (r.label === highlight ? 1 : 0.7), outline: open ? '1px dashed var(--color-faint)' : undefined }} />
+            <span className="truncate text-[11px] text-faint">{r.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function TopAgencies({ d }) {
+function TopAgencies({ d, total }) {
   const rows = (d.agencies || []).slice(0, 8).map((a) => ({ label: a.name, value: a.count }));
   if (!rows.length) return null;
+  const members = rows.reduce((a, r) => a + r.value, 0);
   return (
-    <InsightCard title={<>ค่ายที่สมาชิกเยอะที่สุด<br /><Hi>{rows[0].label}</Hi></>} note="นับสมาชิกในทะเบียนของแต่ละสังกัด ไม่ใช่ยอดผู้ติดตาม">
+    <InsightCard title={<>ค่ายที่สมาชิกเยอะที่สุด<br /><Hi>{rows[0].label}</Hi></>} coverage={subsetNote(members, total)} note="นับสมาชิกในทะเบียนของแต่ละสังกัด ไม่ใช่ยอดผู้ติดตาม">
       <Bars rows={rows} color="var(--color-lilac)" />
     </InsightCard>
   );
@@ -313,10 +321,13 @@ function IndieByPlatform({ d }) {
   );
 }
 
-function FastestPlatform({ d }) {
+function FastestPlatform({ d, total }) {
   const yr = (r, y) => (r.debut_years || []).find((x) => x.year === y)?.count || 0;
   const years = (d.debut_trend || []).map((r) => r.year);
-  const last = years.at(-2), prev = years.at(-3); // the newest year is still running, so compare the two before it
+  const newest = years.at(-1);
+  const skipOpen = isIncompleteYear(newest);
+  const last = skipOpen ? years.at(-2) : newest;
+  const prev = skipOpen ? years.at(-3) : years.at(-2);
   if (!last || !prev) return null;
   const rows = (d.platform_breakdown || []).filter((r) => LIVE_PLATFORMS.includes(r.platform))
     .map((r) => ({ label: pname(r.platform), a: yr(r, prev), b: yr(r, last) }))
@@ -325,7 +336,7 @@ function FastestPlatform({ d }) {
   if (!rows.length) return null;
   const sign = (v) => (v > 0 ? `+${v}` : `${v}`);
   return (
-    <InsightCard title={rows[0].value > 0 ? <>เดบิวต์ปี {last} เทียบปี {prev}<br />โตสุดบน <Hi>{rows[0].label}</Hi></> : <>ปี {last} วีเดบิวต์น้อยลงเกือบทุกที่<br /><Hi>{rows[0].label}</Hi> ทรงตัวที่สุด</>} note="เฉพาะแพลตฟอร์มไลฟ์ · จำนวนวีที่เดบิวต์บนแพลตฟอร์มนั้น (เท่าที่ทราบปีเดบิวต์) · ปีที่ยังไม่จบไม่นับ">
+    <InsightCard title={rows[0].value > 0 ? <>เดบิวต์ปี {last} เทียบปี {prev}<br />โตสุดบน <Hi>{rows[0].label}</Hi></> : <>ปี {last} วีเดบิวต์น้อยลงเกือบทุกที่<br /><Hi>{rows[0].label}</Hi> ทรงตัวที่สุด</>} coverage={subsetNote(d.known_debut_year_count, total, Number.isFinite(d.known_debut_year_count) ? Math.max(total - d.known_debut_year_count, 0) : 0)} note={`เฉพาะแพลตฟอร์มไลฟ์ · จำนวนวีที่เดบิวต์บนแพลตฟอร์มนั้น (เท่าที่ทราบปีเดบิวต์) ${INCOMPLETE_YEAR_NOTE}`}>
       <ul className="space-y-2.5 text-sm">
         {rows.map((r) => (
           <li key={r.label} className="flex items-center justify-between gap-3 rounded-lg bg-deep/60 px-3 py-2">
@@ -338,82 +349,90 @@ function FastestPlatform({ d }) {
   );
 }
 
-function PeakYear({ d }) {
+function PeakYear({ d, total }) {
   const t = (d.debut_trend || []).filter((r) => r.known_debuts > 0);
   if (!t.length) return null;
-  const peak = t.reduce((a, b) => (b.known_debuts > a.known_debuts ? b : a));
+  const openYear = new Date().getFullYear();
+  const pool = t.filter((r) => !isIncompleteYear(r.year));
+  const peak = (pool.length ? pool : t).reduce((a, b) => (b.known_debuts > a.known_debuts ? b : a));
   return (
-    <InsightCard title={<>ปีที่วีไทยเดบิวต์มากที่สุด<br />คือ <Hi>ปี {peak.year}</Hi> ({fmt(peak.known_debuts)} คน)</>} note={`จากวีที่ทราบปีเดบิวต์ ${fmt(d.known_debut_year_count)} คน · ปีล่าสุดยังไม่จบปี`}>
-      <VBars label="จำนวนเดบิวต์ต่อปี" highlight={String(peak.year)} rows={t.map((r) => ({ label: String(r.year), value: r.known_debuts }))} />
+    <InsightCard title={<>ปีที่วีไทยเดบิวต์มากที่สุด<br />คือ <Hi>ปี {peak.year}</Hi> ({fmt(peak.known_debuts)} คน)</>} coverage={subsetNote(d.known_debut_year_count, total, Number.isFinite(d.known_debut_year_count) ? Math.max(total - d.known_debut_year_count, 0) : 0)} note={INCOMPLETE_YEAR_NOTE}>
+      <VBars label="จำนวนเดบิวต์ต่อปี" highlight={String(peak.year)} openYear={openYear} rows={t.map((r) => ({ label: String(r.year), value: r.known_debuts }))} />
     </InsightCard>
   );
 }
 
-function SmallAgencies({ d }) {
+function SmallAgencies({ d, total }) {
   const sizes = d.agency_sizes || [];
-  const total = sizes.reduce((a, r) => a + r.agencies, 0);
+  const agencies = sizes.reduce((a, r) => a + r.agencies, 0);
+  const members = sizes.reduce((a, r) => a + (r.members || 0), 0);
   const one = sizes.find((r) => r.size === '1')?.agencies || 0;
-  if (!total) return null;
+  if (!agencies) return null;
   return (
-    <InsightCard title={<>ค่าย <Hi>{pct(one, total)}%</Hi><br />มีสมาชิกคนเดียว</>} note={`จากทั้งหมด ${fmt(total)} สังกัดที่มีสมาชิกในทะเบียน`}>
+    <InsightCard title={<>ค่าย <Hi>{pct(one, agencies)}%</Hi><br />มีสมาชิกคนเดียว</>} coverage={subsetNote(members, total)} note={`จากทั้งหมด ${fmt(agencies)} สังกัดที่มีสมาชิกในทะเบียน`}>
       <Bars rows={sizes.map((r) => ({ label: `${r.size} คน`, value: r.agencies }))} color="var(--color-sky)" unit=" ค่าย" />
     </InsightCard>
   );
 }
 
-function BigAgencyAvg({ ins }) {
+function BigAgencyAvg({ ins, total }) {
   const c = Object.fromEntries(ins.tiers.map((t) => [t.tier, t.count]));
   const n = ins.big_agency_count || 0;
   if (!n) return null;
   return (
-    <InsightCard title={<>ค่ายใหญ่ {n} ค่าย<br />รวมกันมี <Hi>{fmt(c.big)}</Hi> คน (เฉลี่ย {(c.big / n).toFixed(1)})</>} note={TIER_NOTE}>
+    <InsightCard title={<>ค่ายใหญ่ {n} ค่าย<br />รวมกันมี <Hi>{fmt(c.big)}</Hi> คน (เฉลี่ย {(c.big / n).toFixed(1)})</>} coverage={subsetNote(sumTiers(c), total)} note={TIER_NOTE}>
       <Donut size={140} label="สัดส่วนคนตามประเภทสังกัด" center={`${pct(c.big, sumTiers(c))}%`} sub="ค่ายใหญ่" segments={TIERS.map((t) => ({ label: TIER_LABEL[t], value: c[t] || 0, color: TIER_COLOR[t] }))} />
     </InsightCard>
   );
 }
 
-function UnderOneK({ ins }) {
+function UnderOneK({ ins, total }) {
   const order = ['<1K', '1K-10K', '10K-100K', '100K+'];
   const colors = { '<1K': BRAND, '1K-10K': 'var(--color-lilac)', '10K-100K': 'var(--color-sky)', '100K+': 'var(--color-lemon)' };
   const by = Object.fromEntries(ins.size_bands.map((x) => [x.band, sumTiers(x)]));
-  const total = order.reduce((a, b) => a + (by[b] || 0), 0);
-  if (!total) return null;
+  const bandTotal = order.reduce((a, b) => a + (by[b] || 0), 0);
+  if (!bandTotal) return null;
   return (
-    <InsightCard title={<>ช่อง YouTube <Hi>{pct(by['<1K'], total)}%</Hi><br />ยังมีผู้ติดตามไม่ถึง 1K</>} note={`ช่อง YouTube หลักของแต่ละคน ${fmt(total)} ช่อง · ทุกคนเริ่มจากศูนย์ ไปกดติดตามกันได้`}>
+    <InsightCard title={<>ช่อง YouTube <Hi>{pct(by['<1K'], bandTotal)}%</Hi><br />ยังมีผู้ติดตามไม่ถึง 1K</>} coverage={subsetNote(bandTotal, total)} note={`ช่อง YouTube หลักของแต่ละคน ${fmt(bandTotal)} ช่อง · ทุกคนเริ่มจากศูนย์ ไปกดติดตามกันได้ ${YOUTUBE_MEASURE_NOTE}`}>
       <Donut size={140} label="ช่วงยอดผู้ติดตาม YouTube" center={fmt(by['<1K'])} sub="ช่องต่ำกว่า 1K" segments={order.map((b) => ({ label: BAND_LABEL[b], value: by[b] || 0, color: colors[b] }))} />
     </InsightCard>
   );
 }
 
-function AvgChannels({ d }) {
+function AvgChannels({ d, total }) {
   const span = d.platform_span || [];
   const people = span.reduce((a, r) => a + r.count, 0);
   if (!people) return null;
   const avg = span.reduce((a, r) => a + r.platforms * r.count, 0) / people;
   const last = span.at(-1)?.platforms;
   return (
-    <InsightCard title={<>วีไทยหนึ่งคน<br />มีเฉลี่ย <Hi>{avg.toFixed(1)}</Hi> ช่องทาง</>} note="นับทุกแพลตฟอร์มที่ยืนยันแล้วของแต่ละคน">
+    <InsightCard title={<>วีไทยหนึ่งคน<br />มีเฉลี่ย <Hi>{avg.toFixed(1)}</Hi> ช่องทาง</>} coverage={subsetNote(people, total)} note="นับทุกแพลตฟอร์มที่ยืนยันแล้วของแต่ละคน">
       <VBars label="จำนวนช่องทางต่อคน" highlight="1" rows={span.map((r) => ({ label: r.platforms === last ? `${r.platforms}+` : String(r.platforms), value: r.count }))} />
       <p className="mt-2 text-center text-xs text-faint">จำนวนช่องทางต่อคน</p>
     </InsightCard>
   );
 }
 
-function Graduated({ d }) {
-  const g = (d.lifecycle || []).find((r) => r.status === 'graduated')?.count || 0;
+function Graduated({ d, total }) {
+  const rows = (d.lifecycle || []).filter((r) => r.count > 0);
+  const unknown = rows.filter((r) => r.status === 'unknown').reduce((a, r) => a + r.count, 0);
+  const known = rows.filter((r) => r.status !== 'unknown');
+  const knownTotal = known.reduce((a, r) => a + r.count, 0);
+  const g = known.find((r) => r.status === 'graduated')?.count || 0;
   if (!g) return null;
   return (
-    <InsightCard title={<>จบกิจกรรมแล้ว<br />อย่างน้อย <Hi>{fmt(g)}</Hi> คน</>} note="นับเฉพาะที่มีหลักฐานว่าจบกิจกรรม คนที่ไม่ทราบสถานะไม่ได้นับว่ายังทำอยู่">
-      <Donut size={140} label="สถานะในทะเบียน" center={`${pct(g, d.total_vtubers)}%`} sub="จบกิจกรรม" segments={[{ label: 'จบกิจกรรมแล้ว', value: g, color: 'var(--color-peach)' }, { label: 'ไม่ทราบสถานะ', value: d.total_vtubers - g, color: 'var(--color-raised)' }]} />
+    <InsightCard title={<>จบกิจกรรมแล้ว<br />อย่างน้อย <Hi>{fmt(g)}</Hi> คน</>} coverage={subsetNote(knownTotal, total || d.total_vtubers, unknown)} note="นับเฉพาะที่มีหลักฐานว่าจบกิจกรรม คนที่ไม่ทราบสถานะไม่ได้นับว่ายังทำอยู่">
+      <Donut size={140} label="สถานะในทะเบียน" center={`${knownPercent(g, knownTotal)}%`} sub="จบกิจกรรม" segments={known.map((r) => ({ label: STATUS_LABELS[r.status] || r.status, value: r.count, color: r.status === 'graduated' ? 'var(--color-peach)' : 'var(--color-raised)' }))} />
     </InsightCard>
   );
 }
 
-function DebutCoverage({ d }) {
+function DebutCoverage({ d, total }) {
   const known = d.known_debut_year_count || 0;
-  if (!d.total_vtubers) return null;
+  const all = total || d.total_vtubers;
+  if (!all) return null;
   return (
-    <InsightCard title={<>รู้ปีเดบิวต์แล้ว<br /><Hi>{pct(known, d.total_vtubers)}%</Hi> ของทะเบียน</>} note="ช่วยเติมปีเดบิวต์ได้ที่หน้าแจ้งข้อมูล">
+    <InsightCard title={<>รู้ปีเดบิวต์แล้ว<br /><Hi>{pct(known, all)}%</Hi> ของทะเบียน</>} coverage={subsetNote(known, all, Math.max(all - known, 0))} note="ช่วยเติมปีเดบิวต์ได้ที่หน้าแจ้งข้อมูล">
       <Donut size={140} label="ความครบของปีเดบิวต์" center={fmt(known)} sub="คนที่รู้ปี" segments={[{ label: 'รู้ปีเดบิวต์', value: known, color: 'var(--color-mint)' }, { label: 'ยังไม่รู้', value: d.total_vtubers - known, color: 'var(--color-raised)' }]} />
     </InsightCard>
   );
@@ -421,29 +440,31 @@ function DebutCoverage({ d }) {
 
 export default function Insights({ ins, d }) {
   if (!ins) return null;
+  const total = d?.total_vtubers;
+  const knownDebut = d?.known_debut_year_count;
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        <TierShare ins={ins} />
-        <StillActive ins={ins} />
-        <ActiveDots ins={ins} />
-        <SmallChoices ins={ins} />
-        <BandsByTier ins={ins} />
-        <BandLines ins={ins} />
-        <TierBands ins={ins} />
-        <NewDebuts ins={ins} />
-        <LiveWhere ins={ins} />
+        <TierShare ins={ins} total={total} />
+        <StillActive ins={ins} total={total} />
+        <ActiveDots ins={ins} total={total} />
+        <SmallChoices ins={ins} total={total} />
+        <BandsByTier ins={ins} total={total} />
+        <BandLines ins={ins} total={total} />
+        <TierBands ins={ins} total={total} />
+        <NewDebuts ins={ins} total={total} knownDebut={knownDebut} />
+        <LiveWhere ins={ins} total={total} />
         {d && <>
-          <TopAgencies d={d} />
+          <TopAgencies d={d} total={total} />
           <IndieByPlatform d={d} />
-          <FastestPlatform d={d} />
-          <PeakYear d={d} />
-          <SmallAgencies d={d} />
-          <BigAgencyAvg ins={ins} />
-          <UnderOneK ins={ins} />
-          <AvgChannels d={d} />
-          <Graduated d={d} />
-          <DebutCoverage d={d} />
+          <FastestPlatform d={d} total={total} />
+          <PeakYear d={d} total={total} />
+          <SmallAgencies d={d} total={total} />
+          <BigAgencyAvg ins={ins} total={total} />
+          <UnderOneK ins={ins} total={total} />
+          <AvgChannels d={d} total={total} />
+          <Graduated d={d} total={total} />
+          <DebutCoverage d={d} total={total} />
         </>}
       </div>
       <p className="mt-3 text-right text-xs text-faint">ข้อมูลประมาณการ ณ {ins.basis.data_as_of} · ไม่ควรใช้อ้างอิงทางวิชาการ</p>
