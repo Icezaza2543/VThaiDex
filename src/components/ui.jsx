@@ -131,17 +131,19 @@ export function CreatorCard({ creator, variant = 0, discover = false }) {
   );
 }
 
-/** Vertical bars for discrete years. series: [{key, color, values: {year: n}}] stacked bottom-up. */
-export function YearBars({ years, series, height = 150, label }) {
+/** Vertical bars for discrete years. series: [{key, color, values: {year: n}}] stacked bottom-up.
+ *  `openYear` is drawn lighter: that year is not finished. */
+export function YearBars({ years, series, height = 150, label, openYear }) {
   const totals = years.map((y) => series.reduce((a, s) => a + (s.values[y] || 0), 0));
   const max = Math.max(...totals, 1);
+  const open = (y) => openYear != null && Number(y) === Number(openYear);
   return (
     <figure aria-label={label}>
       <div className="flex items-end gap-1 sm:gap-1.5" style={{ height }}>
         {years.map((y, i) => (
-          <div key={y} className="group relative flex h-full flex-1 flex-col justify-end" title={`${y}: ${fmt(totals[i])}`}>
+          <div key={y} className="group relative flex h-full flex-1 flex-col justify-end" title={`${y}: ${fmt(totals[i])}`} data-incomplete-year={open(y) ? 'true' : undefined}>
             <span className="mb-1 text-center text-[11px] tabular-nums text-faint opacity-0 group-hover:opacity-100">{fmt(totals[i])}</span>
-            <div className="flex w-full flex-col-reverse overflow-hidden rounded-t-md" style={{ height: `${(totals[i] / max) * 100}%` }}>
+            <div className="flex w-full flex-col-reverse overflow-hidden rounded-t-md" style={{ height: `${(totals[i] / max) * 100}%`, opacity: open(y) ? 0.4 : 1, outline: open(y) ? '1px dashed var(--color-faint)' : undefined }}>
               {series.map((s) => (
                 <span key={s.key} className="block w-full shrink-0" style={{ background: s.color, height: `${totals[i] ? ((s.values[y] || 0) / totals[i]) * 100 : 0}%` }} />
               ))}
